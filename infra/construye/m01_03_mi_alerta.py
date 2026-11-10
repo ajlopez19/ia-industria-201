@@ -25,12 +25,33 @@ print("servicios que vigila Prometheus:", consultar("count(up)"))
 
 # --- PASO 2: ¿está vivo cada servicio? -----------------------------------------
 # (pega aquí el bloque del paso 2)
+for etiquetas, valor in consultar("up"):
+    print(f"vivo {etiquetas['job']:11s} = {valor:.0f}")
 
 # --- PASO 3: ¿hace su trabajo el archivador? -----------------------------------
 # (pega aquí el bloque del paso 3)
+def segundos_sin_guardar():
+    resultado = consultar("time() - archivador_ultimo_registro_timestamp_seconds")
+    return resultado[0][1]
+
+print(f"segundos sin guardar: {segundos_sin_guardar():.1f}")
 
 # --- PASO 4: ¿se pierden carcasas? ---------------------------------------------
 # (pega aquí el bloque del paso 4)
+fabricadas = consultar("sum(increase(estacion_piezas_fabricadas_total[1m]))")[0][1]
+guardadas = consultar("sum(increase(archivador_registros_guardados_total[1m]))")[0][1]
+print(f"último minuto: fabricadas={fabricadas:.0f} guardadas={guardadas:.0f} diferencia={fabricadas - guardadas:.0f}")
 
 # --- PASO 5: una alerta con su tiempo for --------------------------------------
 # (pega aquí el bloque del paso 5)
+estado, desde = "normal", None
+inicio = time.time()
+while time.time() - inicio < VIGILAR_S:
+    valor = segundos_sin_guardar()
+    if valor > LIMITE_S:
+        desde = desde or time.time()                     # cuándo empezó a cumplirse
+        estado = "disparada" if time.time() - desde >= FOR_S else "pendiente"
+    else:
+        estado, desde = "normal", None
+    print(f"{time.strftime('%H:%M:%S')}  sin guardar={valor:5.1f} s  alerta={estado}")
+    time.sleep(CADA_S)
